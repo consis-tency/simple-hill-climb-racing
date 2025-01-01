@@ -89,30 +89,67 @@ def drawRectangle(x1, y1, x2, y2):
 
 # GENERATE HILLS
 # GENERATE HILLS (Realistic Terrain)
+# PROCEDURAL TERRAIN GENERATION (MIDPOINT DISPLACEMENT)
 def generateHills():
     global hills
     hills = []  # Clear any existing hills
 
-    segment_length_range = (50, 150)  # Length of each hill segment
-    height_range = (-50, 100)        # Height range for hill peaks
+    # Parameters for terrain generation
+    start_x, end_x = -400, 800  # Horizontal range of the terrain
+    start_y, end_y = 0, 0       # Starting and ending heights
+    segments = 200              # Number of segments (resolution)
+    initial_displacement = 100  # Maximum initial vertical displacement
 
-    current_x = -400
-    current_y = 0
+    # Generate terrain points
+    terrain_points = midpoint_displacement(start_x, end_x, start_y, end_y, segments, initial_displacement)
+    hills.extend(terrain_points)
 
-    while current_x < 800:  # Generate until the right edge
-        next_length = random.randint(*segment_length_range)
-        next_height = random.randint(*height_range)
+# MIDPOINT DISPLACEMENT ALGORITHM
+def midpoint_displacement(start_x, end_x, start_y, end_y, segments, initial_displacement):
+    """
+    Generate a procedural terrain using the midpoint displacement algorithm.
+    :param start_x: Starting x-coordinate of the terrain
+    :param end_x: Ending x-coordinate of the terrain
+    :param start_y: Starting y-coordinate (height) at the start
+    :param end_y: Ending y-coordinate (height) at the end
+    :param segments: Number of divisions for the terrain
+    :param initial_displacement: Maximum vertical displacement at the start
+    :return: List of (x, y) points representing the terrain
+    """
+    points = [(start_x, start_y), (end_x, end_y)]
 
-        for step in range(next_length):
-            t = step / next_length
-            interpolated_y = int((1 - t) * current_y + t * next_height)  # Convert to integer
-            hills.append((current_x + step, interpolated_y))
+    def subdivide(points, displacement):
+        if displacement < 1 or len(points) - 1 >= segments:
+            return points
 
-        current_x += next_length
-        current_y = next_height
+        new_points = []
+        for i in range(len(points) - 1):
+            x1, y1 = points[i]
+            x2, y2 = points[i + 1]
 
-    for x in range(current_x, current_x + 100, 5):
-        hills.append((x, int(current_y)))  # Ensure y is an integer
+            # Calculate the midpoint
+            mid_x = (x1 + x2) / 2
+            mid_y = (y1 + y2) / 2
+
+            # Displace the midpoint
+            mid_y += random.uniform(-displacement, displacement)
+
+            # Add the points
+            new_points.append((x1, y1))
+            new_points.append((mid_x, mid_y))
+
+        new_points.append(points[-1])  # Add the last point
+        return subdivide(new_points, displacement * 0.5)
+
+    return subdivide(points, initial_displacement)
+
+# DRAW HILLS (REALISTIC TERRAIN)
+def drawHills():
+    glColor3f(0.2, 0.8, 0.2)  # Green color for hills
+    glBegin(GL_LINE_STRIP)  # Use line strip for smoother terrain rendering
+    for x, y in hills:
+        glVertex2i(int(x), int(y))
+    glEnd()
 
 
 # DRAW HILLS (Realistic Terrain)
