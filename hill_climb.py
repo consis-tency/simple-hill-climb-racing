@@ -5,11 +5,19 @@ from OpenGL.GLU import *
 import random
 import time
 import math
+from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
 
 
 # Window dimensions
 WINDOW_WIDTH, WINDOW_HEIGHT = 800, 450
-BG_COLOR = (0.53, 0.81, 0.98, 1.0) 
+BG_COLOR = (0.53, 0.81, 0.98, 1.0)
+COLLECTABLE_TYPES = {
+    "coin": {"color": (1.0, 1.0, 0.0), "radius": 5},  # Yellow coins
+    "fuel": {"color": (1.0, 0.0, 0.0), "radius": 8},  # Red fuel cans
+}
+
+
+collectables = []  # List to store collectibles (coins and fuel tanks)
 
 
 car_length = 50  # Length of the car
@@ -17,9 +25,11 @@ car_front_x = car_length // 2
 car_back_x = -car_length // 2
 car_front_y = 0
 car_back_y = 0
-car_velocity_y = 0  # Car's vertical velocity
+# car_velocity_y = 0  # Car's vertical velocity
+car_velocity_y_front = 0  # Car's vertical velocity for the front
+car_velocity_y_back = 0  # Car's vertical velocity for the back
 car_speed = 0  # Car's horizontal speed
-gravity = -50  # Gravity effect
+gravity = -100  # Gravity effect
 fuel_level = 1000  # Initial fuel level
 game_over = False  # Game over flag
 paused = False  # Pause flag
@@ -34,7 +44,11 @@ terrain_offset_x = 0  # Offset for terrain movement
 
 last_time = time.time()  # Last time the animation was updated
 
-
+# Scoring variables
+score = 0
+airtime_start = None
+airtime_score = 0
+airtime_display_time = 0
 
 
 # DRAWING ALGORITHMS
@@ -164,14 +178,15 @@ def plot_circle_points(cx, cy, x, y):
 # GAME OBJECTS
 ## TERRAIN
 
-def generateHills(): # Working (DONE)
-    global hills, hill_render_step_size
+def generateHills():  # Working (DONE)
+    global hills, hill_render_step_size, collectables
     hills = []  # Clear any existing hills
+    collectables = []  # Clear existing collectibles
 
     # Parameters for the sinusoidal function
     amplitude = 70  # Height of the hills
     angle_inc = 0.1
-    angle = -(math.pi/2)
+    angle = -(math.pi / 2)
     offset_y = -110  # Vertical offset of the terrain
 
     x = 0
@@ -189,8 +204,19 @@ def generateHills(): # Working (DONE)
                 x += hill_render_step_size
         y = amplitude * sin + offset_y
         hills.append(y)  # Append the y-coordinate
+
+        # Generate collectibles randomly
+        if random.random() < .5:  # 5% chance to place a collectible
+            collectable_type = random.choice(["coin", "fuel"])
+            collectables.append({
+                "type": collectable_type,
+                "x": x*hill_render_step_size,
+                "y": y + 30,  # Offset above the terrain
+            })
+
         x += hill_render_step_size
         angle += angle_inc
+
 
 def drawHills():
     global hills, hill_render_step_size, terrain_offset_x, WINDOW_WIDTH
@@ -235,15 +261,16 @@ def drawCar():
     drawCircle(wheel_radius, car_front_x, car_front_y - wheel_radius)
 
 def updateCar(delta_time):
-    global car_front_x, car_front_y, car_back_x, car_back_y, car_velocity_y, gravity, car_speed, terrain_offset_x, fuel_level, paused, game_over, hill_render_step_size, WINDOW_WIDTH
+    global car_front_x, car_front_y, car_back_x, car_back_y, car_velocity_y_front, car_velocity_y_back, gravity, car_speed, terrain_offset_x, fuel_level, paused, game_over, hill_render_step_size, WINDOW_WIDTH, airtime_start, score, airtime_score, airtime_display_time
 
     if fuel_level <= 0 or paused or game_over:
         return
 
-    # Gravity effect
-    car_velocity_y += gravity * delta_time
-    car_front_y += car_velocity_y * delta_time
-    car_back_y += car_velocity_y * delta_time
+    # Gravity effect on front and back separately
+    car_velocity_y_front += gravity * delta_time
+    car_velocity_y_back += gravity * delta_time
+    car_front_y += car_velocity_y_front * delta_time
+    car_back_y += car_velocity_y_back * delta_time
 
     # Apply friction
     friction_coefficient = 0.98  # Adjust this value as needed
@@ -262,6 +289,8 @@ def updateCar(delta_time):
     terrain_offset_x = new_terrain_offset_x
 
     # Ensure car adheres to the terrain
+    front_on_ground = False
+    back_on_ground = False
     for i in range(len(hills) - 1):
         x1 = i * hill_render_step_size - terrain_offset_x
         y1 = hills[i]
@@ -275,7 +304,8 @@ def updateCar(delta_time):
 
             if car_front_y < hill_y_front + wheel_radius:
                 car_front_y = hill_y_front + wheel_radius
-                car_velocity_y = 0
+                car_velocity_y_front = 0
+                front_on_ground = True
 
         if x1 <= car_back_x <= x2:
             # Linear interpolation to find the y position on the hill for the back
@@ -284,13 +314,103 @@ def updateCar(delta_time):
 
             if car_back_y < hill_y_back + wheel_radius:
                 car_back_y = hill_y_back + wheel_radius
-                car_velocity_y = 0
+                car_velocity_y_back = 0
+                back_on_ground = True
+
+    # Check for airtime
+    if not front_on_ground and not back_on_ground:
+        if airtime_start is None:
+            airtime_start = time.time()
+        else:
+            airtime_duration = time.time() - airtime_start
+            if airtime_duration >= 1:
+                airtime_score = 500 * (2 ** (int(airtime_duration) - 1))
+                score += airtime_score
+                airtime_display_time = time.time()
+                airtime_start = time.time()  # Reset airtime start for the next second
+    else:
+        airtime_start = None
 
     # Fuel consumption
     fuel_level -= abs(car_speed) * delta_time * 0.01
 
     if fuel_level <= 0:
         game_over = True
+
+## COLLECTABLES
+def drawCollectibles():
+    global collectables, COLLECTABLE_TYPES, terrain_offset_x
+
+    for collectable in collectables:
+        collectable_type = collectable["type"]
+        cx = collectable["x"] - terrain_offset_x - WINDOW_WIDTH // 2
+        cy = collectable["y"]
+        
+        # Check if the collectable is within the visible area
+        if -WINDOW_WIDTH // 2 <= cx <= WINDOW_WIDTH // 2 and -WINDOW_HEIGHT // 2 <= cy <= WINDOW_HEIGHT // 2:
+            color = COLLECTABLE_TYPES[collectable_type]["color"]
+            radius = COLLECTABLE_TYPES[collectable_type]["radius"]
+
+            glColor3f(*color)  # Set collectible color
+            glPointSize(3)
+            drawCircle(radius, int(cx), int(cy))
+
+def checkCollectibleCollision():
+    global collectables, car_front_x, car_front_y, car_back_x, car_back_y, fuel_level, score, terrain_offset_x
+
+    for collectable in collectables[:]:
+        cx = collectable["x"] - terrain_offset_x
+        cy = collectable["y"]
+
+        # Check if the collectable is within the visible area
+        if 0 <= cx <= WINDOW_WIDTH and 0 <= cy <= WINDOW_HEIGHT:
+            # Check distance from the car's wheels
+            if (
+                math.sqrt((car_front_x - cx) ** 2 + (car_front_y - cy) ** 2) < wheel_radius
+                or math.sqrt((car_back_x - cx) ** 2 + (car_back_y - cy) ** 2) < wheel_radius
+            ):
+                # Handle collectible effect
+                if collectable["type"] == "coin":
+                    coin_score = random.choice([50, 100, 200, 500, 1000, 5000])
+                    score += coin_score
+                    print(f"Coin collected! Score: {score}")
+                elif collectable["type"] == "fuel":
+                    fuel_level += 50  # Increase fuel level
+                    print(f"Fuel collected! Fuel level: {fuel_level}")
+
+                collectables.remove(collectable)
+
+
+## On-screen text rendering
+def renderText(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
+    glRasterPos2f(x, y)
+    for char in text:
+        glutBitmapCharacter(font, ord(char))
+
+def displayFuelLevel():
+    global fuel_level
+    glColor3f(0, 0, 0)  # Set text color to black
+    renderText(-WINDOW_WIDTH // 2 + 10, WINDOW_HEIGHT // 2 - 20, f"Fuel: {int(fuel_level)}")
+
+def displayCarSpeedAndGear():
+    global car_speed
+    glColor3f(0, 0, 0)  # Set text color to black
+    renderText(-WINDOW_WIDTH // 2 + 10, -WINDOW_HEIGHT // 2 + 20, f"Speed: {int(abs(car_speed))}")
+
+    gear = "Forward" if car_speed > 0 else "Reverse" if car_speed < 0 else "Neutral"
+    renderText(-WINDOW_WIDTH // 2 + 150, -WINDOW_HEIGHT // 2 + 20, f"Gear: {gear}")
+
+def displayScore():
+    global score
+    glColor3f(0, 0, 0)  # Set text color to black
+    renderText(-WINDOW_WIDTH // 2 + 10, WINDOW_HEIGHT // 2 - 40, f"Score: {int(score)}")
+
+def displayAirtimeScore():
+    global airtime_score, airtime_display_time
+    if time.time() - airtime_display_time < 0.8:  # Display for 2 seconds
+        glColor3f(0, 0, 0)  # Set text color to red
+        renderText(-50, 0, f"Airtime +{int(airtime_score)}")
+
 
 # GAME ENVIRONMENT
 ## KEYBOARD INPUT
@@ -314,10 +434,30 @@ def keyboardListener(key, x, y):
             paused = not paused
             print("Game paused!" if paused else "Game resumed!")
 
-    # elif key == b'r':  # Restart game
-    #     restartGame()
+    elif key == b'r':  # Restart game
+        restartGame()
 
     glutPostRedisplay()
+
+def restartGame():
+    global car_front_x, car_front_y, car_back_x, car_back_y, car_velocity_y_front, car_velocity_y_back, car_speed, fuel_level, game_over, paused, terrain_offset_x, last_time, score, airtime_start, airtime_score, airtime_display_time
+    car_front_x = car_length // 2
+    car_back_x = -car_length // 2
+    car_front_y = 0
+    car_back_y = 0
+    car_velocity_y_front = 0
+    car_velocity_y_back = 0
+    car_speed = 0
+    fuel_level = 1000
+    game_over = False
+    paused = False
+    terrain_offset_x = 0
+    last_time = time.time()
+    score = 0
+    airtime_start = None
+    airtime_score = 0
+    airtime_display_time = 0
+    generateHills()
 
 ## Initialize the game environment
 def init():
@@ -342,6 +482,9 @@ def animate():
     last_time = current_time
 
     updateCar(delta_time)
+    checkCollectibleCollision()
+    drawCollectibles()
+
     glutPostRedisplay()
 
 ## Display function to clear the screen and redraw the next frame
@@ -356,6 +499,10 @@ def display():
 
     drawHills()
     drawCar()
+    displayFuelLevel()
+    displayCarSpeedAndGear()
+    displayScore()
+    displayAirtimeScore()
     
     glColor3f(0, 0, 0)
     glPointSize(2)
