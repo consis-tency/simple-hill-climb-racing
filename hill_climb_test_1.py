@@ -1,5 +1,6 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
+from OpenGL.GLUT.fonts import GLUT_BITMAP_8_BY_13
 from OpenGL.GLU import *
 import time
 import math
