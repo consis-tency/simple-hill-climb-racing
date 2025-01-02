@@ -493,7 +493,7 @@ def animate():
 
     updateCar(delta_time)
     checkCollectibleCollision()
-    drawCollectibles()
+    
 
     glutPostRedisplay()
 
@@ -509,6 +509,7 @@ def display():
 
     drawHills()
     drawCar()
+    drawCollectibles()
     displayFuelLevel()
     displayCarSpeedAndGear()
     displayScore()
