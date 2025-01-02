@@ -178,11 +178,10 @@ def plot_circle_points(cx, cy, x, y):
 
 # GAME OBJECTS
 ## TERRAIN
-
 def generateHills():  # Working (DONE)
     global hills, hill_render_step_size, collectables
     hills = []  # Clear any existing hills
-    collectables = []  # Clear existing collectibles
+    collectables = [None] * (50000 // hill_render_step_size)  # Initialize collectables list with None
 
     # Parameters for the sinusoidal function
     amplitude = 70  # Height of the hills
@@ -207,13 +206,9 @@ def generateHills():  # Working (DONE)
         hills.append(y)  # Append the y-coordinate
 
         # Generate collectibles randomly
-        if random.random() < .5:  # 5% chance to place a collectible
+        if random.random() < 0.05:  # 5% chance to place a collectible
             collectable_type = random.choice(["coin", "fuel"])
-            collectables.append({
-                "type": collectable_type,
-                "x": x*hill_render_step_size,
-                "y": y + 30,  # Offset above the terrain
-            })
+            collectables[int(x // hill_render_step_size)] = collectable_type  # Store the type in the list
 
         x += hill_render_step_size
         angle += angle_inc
@@ -302,16 +297,16 @@ def updateCar(delta_time):
     if 0 <= front_idx < len(hills):
         hill_y_front = hills[front_idx]
 
-        if car_front_y < hill_y_front + wheel_radius:
-            car_front_y = hill_y_front + wheel_radius
+        if car_front_y < hill_y_front + wheel_radius*2:
+            car_front_y = hill_y_front + wheel_radius*2
             car_velocity_y_front = 0
             front_on_ground = True
 
     if 0 <= back_idx < len(hills):
         hill_y_back = hills[back_idx]
 
-        if car_back_y < hill_y_back + wheel_radius:
-            car_back_y = hill_y_back + wheel_radius
+        if car_back_y < hill_y_back + wheel_radius*2:
+            car_back_y = hill_y_back + wheel_radius*2
             car_velocity_y_back = 0
             back_on_ground = True
 
@@ -343,47 +338,53 @@ def updateCar(delta_time):
 
 ## COLLECTABLES
 def drawCollectibles():
-    global collectables, COLLECTABLE_TYPES, terrain_offset_x
+    global collectables, terrain_offset_x
 
-    for collectable in collectables:
-        collectable_type = collectable["type"]
-        cx = collectable["x"] - terrain_offset_x - WINDOW_WIDTH // 2
-        cy = collectable["y"]
-        
+    for i, collectable in enumerate(collectables):
+        if collectable is None:
+            continue  # Skip if no collectable is present
+
+        # Calculate x position based on terrain offset
+        cx = i * hill_render_step_size - terrain_offset_x - WINDOW_WIDTH // 2
+        cy = hills[i] + 30  # Collectable is 30px above the terrain
+
         # Check if the collectable is within the visible area
         if -WINDOW_WIDTH // 2 <= cx <= WINDOW_WIDTH // 2 and -WINDOW_HEIGHT // 2 <= cy <= WINDOW_HEIGHT // 2:
-            color = COLLECTABLE_TYPES[collectable_type]["color"]
-            radius = COLLECTABLE_TYPES[collectable_type]["radius"]
+            if collectable == "coin":
+                glColor3f(1.0, 0.84, 0.0)  # Golden color for coin
+                drawCircle(5, int(cx), int(cy))
+            elif collectable == "fuel":
+                glColor3f(1.0, 0.0, 0.0)  # Red color for fuel
+                drawCircle(8, int(cx), int(cy))
 
-            glColor3f(*color)  # Set collectible color
-            glPointSize(3)
-            drawCircle(radius, int(cx), int(cy))
+
 
 def checkCollectibleCollision():
     global collectables, car_front_x, car_front_y, car_back_x, car_back_y, fuel_level, score, terrain_offset_x
 
-    for collectable in collectables[:]:
-        cx = collectable["x"] - terrain_offset_x
-        cy = collectable["y"]
+    for i, collectable in enumerate(collectables[:]):
+        if collectable is None:
+            continue  # Skip if no collectable is present
 
-        # Check if the collectable is within the visible area
-        if 0 <= cx <= WINDOW_WIDTH and 0 <= cy <= WINDOW_HEIGHT:
-            # Check distance from the car's wheels
-            if (
-                math.sqrt((car_front_x - cx) ** 2 + (car_front_y - cy) ** 2) < wheel_radius
-                or math.sqrt((car_back_x - cx) ** 2 + (car_back_y - cy) ** 2) < wheel_radius
-            ):
-                # Handle collectible effect
-                if collectable["type"] == "coin":
-                    coin_score = random.choice([50, 100, 200, 500, 1000, 5000])
-                    score += coin_score
-                    print(f"Coin collected! Score: {score}")
-                elif collectable["type"] == "fuel":
-                    fuel_level += 50  # Increase fuel level
-                    print(f"Fuel collected! Fuel level: {fuel_level}")
+        # Calculate x and y position based on terrain offset
+        cx = i * hill_render_step_size - terrain_offset_x
+        cy = hills[i] + 30  # Collectable is 30px above the terrain
 
-                collectables.remove(collectable)
+        # Check distance from the car's wheels
+        if (
+            math.sqrt((car_front_x - cx) ** 2 + (car_front_y - cy) ** 2) < wheel_radius
+            or math.sqrt((car_back_x - cx) ** 2 + (car_back_y - cy) ** 2) < wheel_radius
+        ):
+            # Handle collectible effect
+            if collectable == "coin":
+                coin_score = random.choice([50, 100, 200, 500, 1000, 5000])
+                score += coin_score
+                print(f"Coin collected! Score: {score}")
+            elif collectable == "fuel":
+                fuel_level += 50  # Increase fuel level
+                print(f"Fuel collected! Fuel level: {fuel_level}")
 
+            collectables[i] = None  # Remove collectable after it has been collected
 
 ## On-screen text rendering
 def renderText(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
@@ -516,6 +517,8 @@ def display():
     
     glColor3f(0, 0, 0)
     glPointSize(2)
+    # glColor3f(1.0, 0.84, 0.0)  # Golden color
+    # drawCircle(5, 0, 0)
     # drawLine(-400, -225, 400, 225)
 
     glutSwapBuffers()
