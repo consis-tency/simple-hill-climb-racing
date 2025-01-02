@@ -25,10 +25,11 @@ car_front_x = car_length // 2
 car_back_x = -car_length // 2
 car_front_y = 0
 car_back_y = 0
-# car_velocity_y = 0  # Car's vertical velocity
 car_velocity_y_front = 0  # Car's vertical velocity for the front
 car_velocity_y_back = 0  # Car's vertical velocity for the back
 car_speed = 0  # Car's horizontal speed
+
+
 gravity = -100  # Gravity effect
 fuel_level = 1000  # Initial fuel level
 game_over = False  # Game over flag
@@ -217,9 +218,10 @@ def generateHills():  # Working (DONE)
         x += hill_render_step_size
         angle += angle_inc
 
-
+start_index = 0
+end_index = 0
 def drawHills():
-    global hills, hill_render_step_size, terrain_offset_x, WINDOW_WIDTH
+    global hills, hill_render_step_size, terrain_offset_x, WINDOW_WIDTH, start_index, end_index
     glPointSize(2)
     glColor3f(0.01, 0.5, 0.01)  # Green color for hills
 
@@ -273,7 +275,7 @@ def updateCar(delta_time):
     car_back_y += car_velocity_y_back * delta_time
 
     # Apply friction
-    friction_coefficient = 0.98  # Adjust this value as needed
+    friction_coefficient = 0.98  # needs to be between 0 and 1
     car_speed *= friction_coefficient
 
     # Calculate the new terrain offset
@@ -291,31 +293,33 @@ def updateCar(delta_time):
     # Ensure car adheres to the terrain
     front_on_ground = False
     back_on_ground = False
-    for i in range(len(hills) - 1):
-        x1 = i * hill_render_step_size - terrain_offset_x
-        y1 = hills[i]
-        x2 = (i + 1) * hill_render_step_size - terrain_offset_x
-        y2 = hills[i + 1]
 
-        if x1 <= car_front_x <= x2:
-            # Linear interpolation to find the y position on the hill for the front
-            t = (car_front_x - x1) / (x2 - x1)
-            hill_y_front = y1 * (1 - t) + y2 * t
+    # Calculate the indices of the hill segments for the front and back wheels
+    front_idx = int((start_index + end_index) / 2 + ((car_length / 2) / hill_render_step_size))
+    back_idx = int((start_index + end_index) / 2 - ((car_length / 2) / hill_render_step_size))
 
-            if car_front_y < hill_y_front + wheel_radius:
-                car_front_y = hill_y_front + wheel_radius
-                car_velocity_y_front = 0
-                front_on_ground = True
+    # Ensure the indices are within the bounds of the hills list
+    if 0 <= front_idx < len(hills):
+        hill_y_front = hills[front_idx]
 
-        if x1 <= car_back_x <= x2:
-            # Linear interpolation to find the y position on the hill for the back
-            t = (car_back_x - x1) / (x2 - x1)
-            hill_y_back = y1 * (1 - t) + y2 * t
+        if car_front_y < hill_y_front + wheel_radius:
+            car_front_y = hill_y_front + wheel_radius
+            car_velocity_y_front = 0
+            front_on_ground = True
 
-            if car_back_y < hill_y_back + wheel_radius:
-                car_back_y = hill_y_back + wheel_radius
-                car_velocity_y_back = 0
-                back_on_ground = True
+    if 0 <= back_idx < len(hills):
+        hill_y_back = hills[back_idx]
+
+        if car_back_y < hill_y_back + wheel_radius:
+            car_back_y = hill_y_back + wheel_radius
+            car_velocity_y_back = 0
+            back_on_ground = True
+
+        # print(f"Front: {back_idx}, Back: {front_idx}")
+        # print(car_back_y, car_front_y)
+        # print(hill_y_back, hill_y_front)
+        # print(hills[back_idx], hills[front_idx])
+        # print(hills[(start_index+end_index)//2])
 
     # Check for airtime
     if not front_on_ground and not back_on_ground:
@@ -324,7 +328,7 @@ def updateCar(delta_time):
         else:
             airtime_duration = time.time() - airtime_start
             if airtime_duration >= 1:
-                airtime_score = 500 * (2 ** (int(airtime_duration) - 1))
+                airtime_score = 50 * (2 ** (int(airtime_duration) - 1))
                 score += airtime_score
                 airtime_display_time = time.time()
                 airtime_start = time.time()  # Reset airtime start for the next second
@@ -405,6 +409,11 @@ def displayScore():
     glColor3f(0, 0, 0)  # Set text color to black
     renderText(-WINDOW_WIDTH // 2 + 10, WINDOW_HEIGHT // 2 - 40, f"Score: {int(score)}")
 
+def displayDistanceTravelled():
+    global terrain_offset_x
+    glColor3f(0, 0, 0)  # Set text color to black
+    renderText(-WINDOW_WIDTH // 2 + 10, WINDOW_HEIGHT // 2 - 60, f"Travelled: {int(terrain_offset_x// 10)} m")
+
 def displayAirtimeScore():
     global airtime_score, airtime_display_time
     if time.time() - airtime_display_time < 0.8:  # Display for 2 seconds
@@ -414,7 +423,7 @@ def displayAirtimeScore():
 
 # GAME ENVIRONMENT
 ## KEYBOARD INPUT
-car_top_speed = 600
+car_top_speed = 500
 def keyboardListener(key, x, y):
     global car_speed, paused, game_over, car_top_speed
 
@@ -502,6 +511,7 @@ def display():
     displayFuelLevel()
     displayCarSpeedAndGear()
     displayScore()
+    displayDistanceTravelled()
     displayAirtimeScore()
     
     glColor3f(0, 0, 0)
