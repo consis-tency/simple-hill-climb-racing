@@ -31,7 +31,7 @@ car_speed = 0  # Car's horizontal speed
 
 
 gravity = -100  # Gravity effect
-fuel_level = 1000  # Initial fuel level
+fuel_level = 100  # Initial fuel level
 game_over = False  # Game over flag
 paused = False  # Pause flag
 wheel_radius = 10  # Radius of the car's wheels
@@ -196,11 +196,13 @@ def generateHills():  # Working (DONE)
     while x <= 50000:  # Cover the entire width of the screen
         sin = math.sin(angle)
         if sin < -0.99:
+            # amplitude = random.randint(50, 100)
             rand_limit = random.randint(3, 20)
             for _ in range(rand_limit):
                 hills.append(amplitude * sin + offset_y)
                 x += hill_render_step_size
         elif sin > 0.99:
+            # amplitude = random.randint(50, 100)
             rand_limit = random.randint(0, 1)
             for _ in range(rand_limit):
                 hills.append(amplitude * sin + offset_y)
@@ -212,8 +214,14 @@ def generateHills():  # Working (DONE)
         if random.random() < 0.05:  # 5% chance to place a collectible
             index = int(x // hill_render_step_size)
             if index < max_hills:  # Ensure index is within bounds
-                collectable_type = random.choice(["coin", "fuel"])
+                collectable_type = "coin"
                 collectables[index] = collectable_type  # Store the type in the list
+
+        elif random.random() < 0.01:
+            index = int(x // hill_render_step_size)
+            if index < max_hills:  # Ensure index is within bounds
+                collectable_type = "fuel"
+                collectables[index] = collectable_type
 
         x += hill_render_step_size
         angle += angle_inc
@@ -398,7 +406,8 @@ def checkCollectibleCollision():
                 score += coin_score
                 print(f"Coin collected! Score: {score}")
             elif collectable == "fuel":
-                fuel_level += 50  # Increase fuel level
+                fuel_level = 100 
+                # Increase fuel level
                 print(f"Fuel collected! Fuel level: {fuel_level}")
 
             collectables[i] = None  # Remove collectable after it has been collected
@@ -476,7 +485,7 @@ def restartGame():
     car_velocity_y_front = 0
     car_velocity_y_back = 0
     car_speed = 0
-    fuel_level = 1000
+    fuel_level = 100
     game_over = False
     paused = False
     terrain_offset_x = 0
