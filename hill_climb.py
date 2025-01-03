@@ -354,15 +354,23 @@ def drawCollectibles():
                 glColor3f(1.0, 0.84, 0.0)  # Golden color for coin
                 drawCircle(5, int(cx), int(cy))
             elif collectable == "fuel":
+                # Draw a rectangle for fuel
                 glColor3f(1.0, 0.0, 0.0)  # Red color for fuel
-                drawCircle(8, int(cx), int(cy))
+                x1, y1 = int(cx - 8), int(cy - 8)
+                x2, y2 = int(cx + 8), int(cy - 8)
+                x3, y3 = int(cx + 8), int(cy + 8)
+                x4, y4 = int(cx - 8), int(cy + 8)
+                drawLine(x1, y1, x2, y2)  # Bottom side
+                drawLine(x2, y2, x3, y3)  # Right side
+                drawLine(x3, y3, x4, y4)  # Top side
+                drawLine(x4, y4, x1, y1)  # Left side
 
 
 
 def checkCollectibleCollision():
-    global collectables, car_front_x, car_front_y, car_back_x, car_back_y, fuel_level, score, terrain_offset_x
+    global collectables, car_front_x, car_front_y, car_back_x, car_back_y, fuel_level, score, terrain_offset_x, car_width, car_length
 
-    for i, collectable in enumerate(collectables[:]):
+    for i, collectable in enumerate(collectables[:] ):
         if collectable is None:
             continue  # Skip if no collectable is present
 
@@ -370,10 +378,16 @@ def checkCollectibleCollision():
         cx = i * hill_render_step_size - terrain_offset_x
         cy = hills[i] + 30  # Collectable is 30px above the terrain
 
-        # Check distance from the car's wheels
+        # Check for the car’s bounding box (a rectangle) overlapping with the collectable's area
+        car_left = car_front_x - car_length // 2
+        car_right = car_front_x + car_length // 2
+        car_bottom = min(car_back_y, car_front_y) - wheel_radius  # Assuming wheels touch the ground
+        car_top = max(car_back_y, car_front_y) + wheel_radius
+
+        # Check if the collectable is within the car’s bounding box
         if (
-            math.sqrt((car_front_x - cx) ** 2 + (car_front_y - cy) ** 2) < wheel_radius
-            or math.sqrt((car_back_x - cx) ** 2 + (car_back_y - cy) ** 2) < wheel_radius
+            cx >= car_left and cx <= car_right and
+            cy >= car_bottom and cy <= car_top
         ):
             # Handle collectible effect
             if collectable == "coin":
@@ -385,6 +399,7 @@ def checkCollectibleCollision():
                 print(f"Fuel collected! Fuel level: {fuel_level}")
 
             collectables[i] = None  # Remove collectable after it has been collected
+
 
 ## On-screen text rendering
 def renderText(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
