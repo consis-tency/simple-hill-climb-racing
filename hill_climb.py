@@ -178,10 +178,13 @@ def plot_circle_points(cx, cy, x, y):
 
 # GAME OBJECTS
 ## TERRAIN
+# ...existing code...
+
 def generateHills():  # Working (DONE)
     global hills, hill_render_step_size, collectables
     hills = []  # Clear any existing hills
-    collectables = [None] * (50000 // hill_render_step_size)  # Initialize collectables list with None
+    max_hills = 50000 // hill_render_step_size
+    collectables = [None] * max_hills  # Initialize collectables list with None
 
     # Parameters for the sinusoidal function
     amplitude = 70  # Height of the hills
@@ -207,8 +210,10 @@ def generateHills():  # Working (DONE)
 
         # Generate collectibles randomly
         if random.random() < 0.05:  # 5% chance to place a collectible
-            collectable_type = random.choice(["coin", "fuel"])
-            collectables[int(x // hill_render_step_size)] = collectable_type  # Store the type in the list
+            index = int(x // hill_render_step_size)
+            if index < max_hills:  # Ensure index is within bounds
+                collectable_type = random.choice(["coin", "fuel"])
+                collectables[index] = collectable_type  # Store the type in the list
 
         x += hill_render_step_size
         angle += angle_inc
@@ -338,9 +343,10 @@ def updateCar(delta_time):
 
 ## COLLECTABLES
 def drawCollectibles():
-    global collectables, terrain_offset_x
+    global collectables, terrain_offset_x, start_index, end_index
 
-    for i, collectable in enumerate(collectables):
+    for i in range(start_index, end_index):
+        collectable = collectables[i]
         if collectable is None:
             continue  # Skip if no collectable is present
 
@@ -348,34 +354,31 @@ def drawCollectibles():
         cx = i * hill_render_step_size - terrain_offset_x - WINDOW_WIDTH // 2
         cy = hills[i] + 30  # Collectable is 30px above the terrain
 
-        # Check if the collectable is within the visible area
-        if -WINDOW_WIDTH // 2 <= cx <= WINDOW_WIDTH // 2 and -WINDOW_HEIGHT // 2 <= cy <= WINDOW_HEIGHT // 2:
-            if collectable == "coin":
-                glColor3f(1.0, 0.84, 0.0)  # Golden color for coin
-                drawCircle(5, int(cx), int(cy))
-            elif collectable == "fuel":
-                # Draw a rectangle for fuel
-                glColor3f(1.0, 0.0, 0.0)  # Red color for fuel
-                x1, y1 = int(cx - 8), int(cy - 8)
-                x2, y2 = int(cx + 8), int(cy - 8)
-                x3, y3 = int(cx + 8), int(cy + 8)
-                x4, y4 = int(cx - 8), int(cy + 8)
-                drawLine(x1, y1, x2, y2)  # Bottom side
-                drawLine(x2, y2, x3, y3)  # Right side
-                drawLine(x3, y3, x4, y4)  # Top side
-                drawLine(x4, y4, x1, y1)  # Left side
-
-
+        if collectable == "coin":
+            glColor3f(1.0, 0.84, 0.0)  # Golden color for coin
+            drawCircle(5, int(cx), int(cy))
+        elif collectable == "fuel":
+            # Draw a rectangle for fuel
+            glColor3f(1.0, 0.0, 0.0)  # Red color for fuel
+            x1, y1 = int(cx - 8), int(cy - 8)
+            x2, y2 = int(cx + 8), int(cy - 8)
+            x3, y3 = int(cx + 8), int(cy + 8)
+            x4, y4 = int(cx - 8), int(cy + 8)
+            drawLine(x1, y1, x2, y2)  # Bottom side
+            drawLine(x2, y2, x3, y3)  # Right side
+            drawLine(x3, y3, x4, y4)  # Top side
+            drawLine(x4, y4, x1, y1)  # Left side
 
 def checkCollectibleCollision():
-    global collectables, car_front_x, car_front_y, car_back_x, car_back_y, fuel_level, score, terrain_offset_x, car_width, car_length
+    global collectables, car_front_x, car_front_y, car_back_x, car_back_y, fuel_level, score, terrain_offset_x, car_width, car_length, start_index, end_index
 
-    for i, collectable in enumerate(collectables[:] ):
+    for i in range(start_index, end_index):
+        collectable = collectables[i]
         if collectable is None:
             continue  # Skip if no collectable is present
 
         # Calculate x and y position based on terrain offset
-        cx = i * hill_render_step_size - terrain_offset_x
+        cx = i * hill_render_step_size - terrain_offset_x - WINDOW_WIDTH // 2
         cy = hills[i] + 30  # Collectable is 30px above the terrain
 
         # Check for the car’s bounding box (a rectangle) overlapping with the collectable's area
